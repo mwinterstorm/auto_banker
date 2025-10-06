@@ -11,10 +11,6 @@ homeassistant_api: true  # gives http://supervisor/core/api
 hassio_api: false
 
 # Minimal permissions; no host_network or full_access needed.
-map:
-  - type: addon_config
-    read_only: false
-
 options:
   akahu_app_id: ""        # "App ID Token" (X-Akahu-Id)
   akahu_user_token: ""    # "User Access Token" (Bearer)

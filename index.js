@@ -16,14 +16,35 @@ const {
   webhook_secret
 } = opts;
 
+console.log("loaded opts", {
+  app_id: akahu_app_id.slice(0, 16) + "…",
+  user_token: akahu_user_token.slice(0, 18) + "…",
+  account_from,
+  account_to,
+  min_balance_nzd,
+  topup_amount_nzd,
+  poll_seconds
+});
+
 if (!akahu_app_id || !akahu_user_token) {
   console.error("Missing akahu_app_id or akahu_user_token in options.");
   process.exit(1);
 }
 
+function assertTokenFormat() {
+  if (!akahu_user_token.startsWith("user_token_")) {
+    console.error("akahu_user_token looks wrong (should start with user_token_)");
+    process.exit(1);
+  }
+  if (!akahu_app_id.startsWith("app_token_")) {
+    console.error("akahu_app_id looks wrong (should start with app_token_)");
+    process.exit(1);
+  }
+}
+assertTokenFormat();
+
 const akahu = new AkahuClient({
   appToken: akahu_app_id,       // X-Akahu-Id
-  userToken: akahu_user_token,  // Bearer
 });
 
 const SUPERVISOR_TOKEN = process.env.SUPERVISOR_TOKEN;
@@ -45,7 +66,6 @@ async function haCall(service, data) {
 }
 
 async function notify(title, message, actionUrl) {
-  // Use persistent_notification.create (shows up in HA UI). :contentReference[oaicite:6]{index=6}
   await haCall("persistent_notification/create", {
     title,
     message: `${message}\n\n[Transfer now](${actionUrl})`,
@@ -54,21 +74,18 @@ async function notify(title, message, actionUrl) {
 }
 
 async function currentBalanceNZD(acctId) {
-  // accounts have balance & available fields; use available if present. :contentReference[oaicite:7]{index=7}
-  const acct = await akahu.accounts.get(acctId);
-  // Prefer "available" (what you can spend) else "balance"
-  const amount = (acct.available ?? acct.balance)?.amount;
-  const currency = (acct.available ?? acct.balance)?.currency;
+  const acct = await akahu.accounts.get(akahu_user_token, acctId);
+  const amount = (acct.balance)?.current;
+  const currency = (acct.balance)?.currency;
   if (currency !== "NZD") throw new Error(`Expected NZD, got ${currency}`);
   return amount;
 }
 
 async function doTransferNZD(fromId, toId, amount, note="HA auto-move") {
-  // Akahu "transfers" move money between the user’s own connected accounts. :contentReference[oaicite:8]{index=8}
-  return akahu.transfers.create({
+  return akahu.transfers.create(akahu_user_token, {
     from: fromId,
     to: toId,
-    amount: { amount, currency: "NZD" },
+    amount: amount,
     meta: { note }
   });
 }
@@ -77,6 +94,8 @@ async function pollLoop() {
   for (;;) {
     try {
       const bal = await currentBalanceNZD(account_to);
+      const timeNow = new Date();
+      console.log(timeNow.toISOString(), "Current Bal: $" + bal.toFixed(2));
       if (bal < min_balance_nzd) {
         const url = `${process.env.ADDON_WEB_URL}/transfer/${webhook_secret}`;
         await notify(
@@ -92,7 +111,6 @@ async function pollLoop() {
   }
 }
 
-// Tiny HTTP server to accept the “Transfer now” click
 const app = express();
 
 app.get("/transfer/:secret", async (req, res) => {
@@ -108,17 +126,10 @@ app.get("/transfer/:secret", async (req, res) => {
   }
 });
 
-// Expose on 0.0.0.0 so HA can reverse-proxy it; we’ll store the URL for notifications.
 const port = 8099;
 app.listen(port, "0.0.0.0", () => {
-  // HA proxies add-on HTTP on http://<host>:<dynamic> or via ingress; since we didn't enable ingress,
-  // we reference the internal supervisor hostname + mapped port in message links.
-  // The Supervisor maps container port -> a host port automatically. We can’t know it here,
-  // so we use HA’s /api/webhook approach instead if you prefer (see Option B below).
-  // Simpler: read it from an env var set via S6 or build a HA automation (Option B).
   process.env.ADDON_WEB_URL ||= `http://homeassistant.local:8123/api/webhook/auto-banker-${webhook_secret}`;
   console.log("auto-banker listening");
 });
 
-// Start polling
 pollLoop().catch(err => console.error(err));

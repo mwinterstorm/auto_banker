@@ -8,7 +8,7 @@ WORKDIR /opt/auto_banker
 
 # Install dependencies
 COPY package.json ./
-RUN npm ci --omit=dev
+RUN npm install --omit=dev
 
 COPY index.js ./
 COPY run.sh /run.sh
