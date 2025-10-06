@@ -1,0 +1,36 @@
+name: "Mark's Auto Banker"
+slug: auto_banker
+version: "0.1.0"
+arch: [amd64, aarch64, armv7]
+startup: services
+init: false
+ingress: false
+
+# Let the add-on call Home Assistant's API via the supervisor proxy.
+homeassistant_api: true  # gives http://supervisor/core/api
+hassio_api: false
+
+# Minimal permissions; no host_network or full_access needed.
+map:
+  - type: addon_config
+    read_only: false
+
+options:
+  akahu_app_id: ""        # "App ID Token" (X-Akahu-Id)
+  akahu_user_token: ""    # "User Access Token" (Bearer)
+  account_from: ""        # Akahu account id to top up FROM - being account named OpenKiwi
+  account_to: ""          # Akahu account id to top up TO
+  min_balance_nzd: 1000.0
+  topup_amount_nzd: 500.0
+  poll_seconds: 3600        # 60 min
+  webhook_secret: ""       # random string used in the HA automation URL - e.g. run in terminal: python3 -c "import secrets; print(secrets.token_urlsafe(32))"
+
+schema:
+  akahu_app_id: str
+  akahu_user_token: str
+  account_from: str
+  account_to: str
+  min_balance_nzd: float
+  topup_amount_nzd: float
+  poll_seconds: int
+  webhook_secret: str

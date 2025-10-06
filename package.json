@@ -1,0 +1,9 @@
+{
+  "name": "markwr-auto-banker",
+  "version": "0.1.0",
+  "type": "module",
+  "dependencies": {
+    "akahu": "^2.2.0",
+    "express": "^4.19.2"
+  }
+}
